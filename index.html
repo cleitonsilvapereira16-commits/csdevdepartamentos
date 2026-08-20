@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DEPARTAMENTO FINANCEIRO E COBRANÇA — CS DEV</title>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --app-bg: #0B0F17;
@@ -147,7 +149,7 @@
         <h1 id="app-title-header">DEPARTAMENTO FINANCEIRO E COBRANÇA</h1>
       </div>
       <div class="cc-topbar-user">
-        <span class="sync-status" id="cloud-status">☁️ Nuvem Ativa</span>
+        <span class="sync-status" id="cloud-status">☁️ Supabase Conectado</span>
         <span id="user-display">---</span>
         <button class="cc-logout" id="logout-btn">Sair / Trocar Perfil</button>
       </div>
@@ -162,9 +164,12 @@
     (function(){
       const PIN_SUPERVISOR = "9871";
 
-      // CONFIGURAÇÃO DA API NUVEM (JSONBin.io)
-      const BIN_ID = "66f1e8a9ad19ca34f8ac5210"; 
-      const API_KEY = "$2a$10$wNqH.aL23aE5oYJ6Fm3v8u94iW5H/5tA0B5r4t8m.3N.pS6b6o4mS"; 
+      // ==========================================
+      // CONFIGURAÇÃO SUPABASE
+      // ==========================================
+      const SUPABASE_URL = "https://lgdngncxmlbtshclanzy.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInRefiI6ImxnZG5nbmNubWxidHNoY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       let usuariosDB = {
         "Ludmila": { id: "122", setor: "Cobrança" },
@@ -186,7 +191,6 @@
       let rascunhosDB = {};
       let onlineUsers = {};
       let currentUser = null;
-      let isSaving = false;
 
       const statusAcessoFin = ["Sem retorno", "Retorno pelo OPA", "Retorno por ligação", "Em loja"];
       const prioridadesFin = ["Prioridade", "Finalizar hoje", "Atendimento normal"];
@@ -196,50 +200,47 @@
         "PAGAMENTO AGENDADO", "FICOU PASSAR RECADO", "PRIORIDADE", "JÁ ESTÁ EM CAIXA"
       ];
 
-      // SINCRONIZAÇÃO EM NUVEM
+      // ==========================================
+      // SINCRONIZAÇÃO NUVEM (SUPABASE)
+      // ==========================================
       async function syncFetchCloud() {
-        if(isSaving) return;
         try {
-          const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-            headers: { 'X-Master-Key': API_KEY }
-          });
-          if(res.ok) {
-            const data = await res.json();
-            if(data.record) {
-              clientesDB = data.record.clientesDB || clientesDB;
-              rascunhosDB = data.record.rascunhosDB || rascunhosDB;
-              onlineUsers = data.record.onlineUsers || onlineUsers;
-              document.getElementById('cloud-status').innerHTML = '<span style="color:#10B981;">☁️ Sincronizado</span>';
-              if(currentUser) renderView();
-            }
+          // 1. Buscar Clientes
+          const { data: clientesData, error: errC } = await supabase.from('clientes').select('*');
+          if(!errC && clientesData) {
+            Object.keys(clientesDB).forEach(k => clientesDB[k] = []);
+            clientesData.forEach(row => {
+              if(clientesDB[row.operador]) {
+                clientesDB[row.operador].push(row);
+              }
+            });
           }
+
+          // 2. Buscar Rascunhos
+          const { data: rascunhosData, error: errR } = await supabase.from('rascunhos').select('*');
+          if(!errR && rascunhosData) {
+            rascunhosData.forEach(r => {
+              rascunhosDB[r.operador] = r.texto;
+            });
+          }
+
+          // 3. Buscar Presença Online
+          const { data: presenciaData, error: errP } = await supabase.from('presenca').select('*');
+          if(!errP && presenciaData) {
+            onlineUsers = {};
+            presenciaData.forEach(p => {
+              onlineUsers[p.operador] = p.horario;
+            });
+          }
+
+          document.getElementById('cloud-status').innerHTML = '<span style="color:#10B981;">☁️ Sincronizado</span>';
+          if(currentUser) renderView();
         } catch(e) {
           document.getElementById('cloud-status').innerHTML = '<span style="color:#EF4444;">⚠️ Mod. Offline</span>';
         }
       }
 
-      async function syncPushCloud() {
-        isSaving = true;
-        document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Salvando...</span>';
-        try {
-          await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Master-Key': API_KEY
-            },
-            body: JSON.stringify({ clientesDB, rascunhosDB, onlineUsers })
-          });
-          document.getElementById('cloud-status').innerHTML = '<span style="color:#10B981;">☁️ Sincronizado</span>';
-        } catch(e) {
-          document.getElementById('cloud-status').innerHTML = '<span style="color:#EF4444;">⚠️ Erro ao Salvar</span>';
-        } finally {
-          isSaving = false;
-        }
-      }
-
-      // Loop de Sincronização a cada 5 segundos
-      setInterval(syncFetchCloud, 5000);
+      setInterval(syncFetchCloud, 4000);
 
       function showToast(msg) {
         const toast = document.getElementById('toast-notify');
@@ -284,10 +285,11 @@
         }
 
         currentUser = { nome: u, id: usuariosDB[u].id, setor: usuariosDB[u].setor };
-        onlineUsers[u] = new Date().toLocaleTimeString();
+
+        const horaAtual = new Date().toLocaleTimeString();
+        await supabase.from('presenca').upsert({ operador: u, horario: horaAtual });
 
         await syncFetchCloud();
-        await syncPushCloud();
 
         document.getElementById('welcome-avatar').textContent = u.charAt(0);
         document.getElementById('welcome-title').textContent = `Olá, ${u}`;
@@ -310,8 +312,7 @@
 
       document.getElementById('logout-btn').addEventListener('click', async () => {
         if(currentUser) {
-          delete onlineUsers[currentUser.nome];
-          await syncPushCloud();
+          await supabase.from('presenca').delete().eq('operador', currentUser.nome);
         }
         location.reload();
       });
@@ -346,7 +347,6 @@
             </div>
           </div>
 
-          <!-- BLOCO DE NOTAS DO COLABORADOR -->
           <div class="cc-panel">
             <h3>📝 Bloco de Notas (Salvo na Nuvem para o Supervisor)</h3>
             <div class="cc-field" style="margin-bottom:0;">
@@ -378,19 +378,19 @@
                 </thead>
                 <tbody>
                   ${lista.length === 0 ? '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhuma demanda cadastrada no momento.</td></tr>' : ''}
-                  ${lista.map((item, idx) => `
+                  ${lista.map((item) => `
                     <tr>
                       <td><b>${item.cliente}</b></td>
                       ${isFinanceiro ? `
                         <td><span style="color:var(--app-accent); font-weight:700;">${item.demanda || 'N/A'}</span></td>
                         <td>${item.canal || 'OPA'} / ${item.meio || 'Ligação'}</td>
                         <td>
-                          <select class="table-select" onchange="window.setItemProp('${currentUser.nome}', ${idx}, 'statusAcesso', this.value)">
+                          <select class="table-select" onchange="window.setItemProp('${item.id}', 'statusAcesso', this.value)">
                             ${statusAcessoFin.map(st => `<option value="${st}" ${item.statusAcesso === st ? 'selected' : ''}>${st}</option>`).join('')}
                           </select>
                         </td>
                         <td>
-                          <select class="table-select" onchange="window.setItemProp('${currentUser.nome}', ${idx}, 'prioridade', this.value)">
+                          <select class="table-select" onchange="window.setItemProp('${item.id}', 'prioridade', this.value)">
                             ${prioridadesFin.map(pr => `<option value="${pr}" ${item.prioridade === pr ? 'selected' : ''}>${pr}</option>`).join('')}
                           </select>
                         </td>
@@ -398,23 +398,23 @@
                         <td>${item.etapa || '-'}</td>
                         <td>${item.celular || '-'}</td>
                         <td>
-                          <select class="table-select" onchange="window.setItemProp('${currentUser.nome}', ${idx}, 'statusContato', this.value)">
+                          <select class="table-select" onchange="window.setItemProp('${item.id}', 'statusContato', this.value)">
                             <option value="" ${!item.statusContato ? 'selected' : ''}>-- Selecionar --</option>
                             ${statusCobrança.map(st => `<option value="${st}" ${item.statusContato === st ? 'selected' : ''}>${st}</option>`).join('')}
                           </select>
                         </td>
                       `}
                       <td>
-                        <select class="table-select" style="border-color: ${item.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'};" onchange="window.setItemProp('${currentUser.nome}', ${idx}, 'statusDemanda', this.value)">
+                        <select class="table-select" style="border-color: ${item.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'};" onchange="window.setItemProp('${item.id}', 'statusDemanda', this.value)">
                           <option value="Demanda Pendente" ${item.statusDemanda !== 'Demanda Realizada' ? 'selected' : ''}>Demanda Pendente</option>
                           <option value="Demanda Realizada" ${item.statusDemanda === 'Demanda Realizada' ? 'selected' : ''}>Demanda Realizada</option>
                         </select>
                       </td>
                       <td style="text-align:center;">
-                        <input type="checkbox" class="status-check" ${item.resposta === 'sim' ? 'checked' : ''} onclick="window.setResp('${currentUser.nome}', ${idx}, 'sim')">
+                        <input type="checkbox" class="status-check" ${item.resposta === 'sim' ? 'checked' : ''} onclick="window.setResp('${item.id}', 'sim', '${item.resposta}')">
                       </td>
                       <td style="text-align:center;">
-                        <input type="checkbox" class="status-check" ${item.resposta === 'nao' ? 'checked' : ''} onclick="window.setResp('${currentUser.nome}', ${idx}, 'nao')">
+                        <input type="checkbox" class="status-check" ${item.resposta === 'nao' ? 'checked' : ''} onclick="window.setResp('${item.id}', 'nao', '${item.resposta}')">
                       </td>
                     </tr>
                   `).join('')}
@@ -426,28 +426,29 @@
 
         let padTimeout;
         document.getElementById('note-pad').addEventListener('input', (e) => {
-          rascunhosDB[currentUser.nome] = e.target.value;
+          const val = e.target.value;
           clearTimeout(padTimeout);
-          padTimeout = setTimeout(syncPushCloud, 1000);
+          padTimeout = setTimeout(async () => {
+            await supabase.from('rascunhos').upsert({ operador: currentUser.nome, texto: val });
+          }, 800);
         });
       }
 
-      window.setItemProp = async function(op, idx, key, val) {
-        clientesDB[op][idx][key] = val;
-        await syncPushCloud();
-        renderView();
+      window.setItemProp = async function(id, key, val) {
+        document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Salvando...</span>';
+        await supabase.from('clientes').update({ [key]: val }).eq('id', id);
+        syncFetchCloud();
       };
 
-      window.setResp = async function(op, idx, tipo) {
-        const item = clientesDB[op][idx];
-        item.resposta = (item.resposta === tipo) ? null : tipo;
-        await syncPushCloud();
-        renderView();
+      window.setResp = async function(id, tipo, atual) {
+        const novo = (atual === tipo) ? null : tipo;
+        document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Salvando...</span>';
+        await supabase.from('clientes').update({ resposta: novo }).eq('id', id);
+        syncFetchCloud();
       };
 
       // PAINEL SUPERVISOR / ADMIN
       function renderSupervisorView(container) {
-        // Desempenho Financeiro (Lorena / Josué)
         let finMetrics = {};
         Object.keys(usuariosDB).forEach(u => {
           if(usuariosDB[u].setor === 'Financeiro') {
@@ -463,7 +464,6 @@
           }
         });
 
-        // Desempenho Cobrança (Ludmila, Lucas, Samantha)
         let cobEtapas = {};
         Object.keys(usuariosDB).forEach(u => {
           if(usuariosDB[u].setor === 'Cobrança') {
@@ -482,7 +482,6 @@
         });
 
         container.innerHTML = `
-          <!-- USUÁRIOS ONLINE -->
           <div class="cc-panel" style="background:#1A2332;">
             <h3>🟢 Colaboradores Online no Momento</h3>
             <div style="display:flex; gap:12px; flex-wrap:wrap;">
@@ -497,7 +496,6 @@
             </div>
           </div>
 
-          <!-- DESEMPENHO FINANCEIRO -->
           <div class="cc-panel">
             <h3>💳 Desempenho Financeiro (Demandas Realizadas)</h3>
             <div class="cc-table-wrap">
@@ -524,7 +522,6 @@
             </div>
           </div>
 
-          <!-- DESEMPENHO COBRANÇA -->
           <div class="cc-panel">
             <h3>📈 Desempenho Cobrança (Fechamento de Etapas)</h3>
             <div class="cc-table-wrap">
@@ -555,7 +552,6 @@
             </div>
           </div>
 
-          <!-- BLOCOS DE NOTAS DOS COLABORADORES (VISÃO SUPERVISOR) -->
           <div class="cc-panel" style="border-color:#F59E0B;">
             <h3 style="color:#F59E0B;">📝 Bloco de Notas / Anotações de Cada Colaborador</h3>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
@@ -568,9 +564,7 @@
             </div>
           </div>
 
-          <!-- IMPORTAÇÕES EM MASSA -->
           <div class="import-grid">
-            
             <div class="cc-panel" style="margin-bottom:0;">
               <h3>⚡ Enviar Demandas para Cobrança</h3>
               <div class="cc-field">
@@ -580,10 +574,10 @@
                 </select>
               </div>
               <p style="font-size:11px; color:var(--app-text-muted); margin-bottom:10px;">
-                Copie e cole da planilha (Cliente | Etapa | Telefone)
+                Copie e cole da planilha ou lista simples (Cliente | Etapa | Telefone)
               </p>
               <div class="cc-field">
-                <textarea id="import-cobranca-txt" rows="3" placeholder="LUANA MELO ALENCAR	Etapa 3 (Cobranca)	(61) 98629-6727"></textarea>
+                <textarea id="import-cobranca-txt" rows="3" placeholder="LUANA MELO ALENCAR Etapa 3 (Cobranca)  (61) 98629-6727"></textarea>
               </div>
               <button class="cc-btn" id="btn-import-cobranca" style="width:100%;">Processar e Enviar</button>
             </div>
@@ -597,17 +591,15 @@
                 </select>
               </div>
               <p style="font-size:11px; color:var(--app-text-muted); margin-bottom:10px;">
-                Copie e cole da planilha (Cliente | OPA | Ligação | Demanda)
+                Copie e cole da planilha ou lista simples (Cliente | OPA | Ligação | Demanda)
               </p>
               <div class="cc-field">
-                <textarea id="import-fin-txt" rows="3" placeholder="JOAO DA SILVA	OPA	Ligação	Cartão de crédito"></textarea>
+                <textarea id="import-fin-txt" rows="3" placeholder="JOAO DA SILVA OPA Ligação Cartão de crédito"></textarea>
               </div>
               <button class="cc-btn" id="btn-import-fin" style="width:100%;">Processar e Enviar</button>
             </div>
-
           </div>
 
-          <!-- ACOMPANHAMENTO DETALHADO -->
           <div class="cc-panel" style="margin-top:24px;">
             <h3>📊 Relatório e Progresso Individual</h3>
             ${Object.keys(clientesDB).map(op => {
@@ -647,12 +639,12 @@
                             <td><b>${c.cliente}</b></td>
                             <td>${c.demanda || c.etapa || '-'}</td>
                             <td>
-                              <span style="color:${c.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'}; font-weight:800;">
+                              <span style="color:${c.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'}; font-weight:700;">
                                 ${c.statusDemanda || 'Demanda Pendente'}
                               </span>
                             </td>
-                            <td>${c.resposta === 'sim' ? '✔' : '-'}</td>
-                            <td>${c.resposta === 'nao' ? '❌' : '-'}</td>
+                            <td style="text-align:center;">${c.resposta === 'sim' ? '✅' : '-'}</td>
+                            <td style="text-align:center;">${c.resposta === 'nao' ? '❌' : '-'}</td>
                           </tr>
                         `).join('')}
                       </tbody>
@@ -664,74 +656,123 @@
           </div>
         `;
 
-        document.getElementById('btn-import-cobranca').onclick = async () => {
-          const targetColab = document.getElementById('cob-target-colab').value;
-          const rawText = document.getElementById('import-cobranca-txt').value.trim();
-          if(!rawText) { alert('Cole os dados de Cobrança.'); return; }
+        // Eventos de Importação e Ações do Supervisor (ATUALIZADO)
+        document.getElementById('btn-import-cobranca').addEventListener('click', async () => {
+          const colab = document.getElementById('cob-target-colab').value;
+          const raw = document.getElementById('import-cobranca-txt').value.trim();
+          if(!raw) return alert('Cole o texto para importação.');
 
-          const linhas = rawText.split('\n');
-          let count = 0;
+          const lines = raw.split('\n');
+          const toInsert = [];
 
-          linhas.forEach(linha => {
-            const cols = linha.split('\t');
-            if(cols.length >= 1) {
-              const cliente = cols[0]?.trim();
-              const etapa = cols[1]?.trim() || "Etapa 1";
-              const celular = cols[2]?.trim() || "";
+          lines.forEach(line => {
+            const l = line.trim();
+            if(!l) return;
 
-              if(!clientesDB[targetColab]) clientesDB[targetColab] = [];
+            let parts = l.split('\t');
+            if(parts.length < 2) parts = l.split(';');
+            if(parts.length < 2) parts = l.split('|');
 
-              clientesDB[targetColab].push({
-                cliente, etapa, celular, statusContato: null,
-                statusDemanda: "Demanda Pendente", resposta: null
+            if(parts.length >= 3) {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                etapa: parts[1].trim(), 
+                celular: parts[2].trim(), 
+                statusDemanda: 'Demanda Pendente' 
               });
-              count++;
+            } else if(parts.length === 2) {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                etapa: parts[1].trim(), 
+                celular: '', 
+                statusDemanda: 'Demanda Pendente' 
+              });
+            } else {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: l, 
+                etapa: 'Geral', 
+                celular: '', 
+                statusDemanda: 'Demanda Pendente' 
+              });
             }
           });
 
-          await syncPushCloud();
-          alert(`Sucesso! ${count} demandas enviadas para a nuvem do colaborador ${targetColab}!`);
-          renderView();
-        };
+          if(toInsert.length > 0) {
+            document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Enviando...</span>';
+            const { error } = await supabase.from('clientes').insert(toInsert);
+            
+            if(error) {
+              console.error("Erro Supabase:", error);
+              alert('Erro ao salvar no banco: ' + error.message);
+            } else {
+              document.getElementById('import-cobranca-txt').value = '';
+              showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
+              syncFetchCloud();
+            }
+          }
+        });
 
-        document.getElementById('btn-import-fin').onclick = async () => {
-          const targetColab = document.getElementById('fin-target-colab').value;
-          const rawText = document.getElementById('import-fin-txt').value.trim();
-          if(!rawText) { alert('Cole os dados do Financeiro.'); return; }
+        document.getElementById('btn-import-fin').addEventListener('click', async () => {
+          const colab = document.getElementById('fin-target-colab').value;
+          const raw = document.getElementById('import-fin-txt').value.trim();
+          if(!raw) return alert('Cole o texto para importação.');
 
-          const linhas = rawText.split('\n');
-          let count = 0;
+          const lines = raw.split('\n');
+          const toInsert = [];
 
-          linhas.forEach(linha => {
-            const cols = linha.split('\t');
-            if(cols.length >= 1) {
-              const cliente = cols[0]?.trim();
-              const canal = cols[1]?.trim() || "OPA";
-              const meio = cols[2]?.trim() || "Ligação";
-              const demanda = cols[3]?.trim() || "Cartão de crédito";
+          lines.forEach(line => {
+            const l = line.trim();
+            if(!l) return;
 
-              if(!clientesDB[targetColab]) clientesDB[targetColab] = [];
+            let parts = l.split('\t');
+            if(parts.length < 2) parts = l.split(';');
+            if(parts.length < 2) parts = l.split('|');
 
-              clientesDB[targetColab].push({
-                cliente, canal, meio, demanda,
-                statusAcesso: "Sem retorno", prioridade: "Atendimento normal",
-                statusDemanda: "Demanda Pendente", resposta: null
+            if(parts.length >= 4) {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                canal: parts[1].trim(), 
+                meio: parts[2].trim(), 
+                demanda: parts[3].trim(), 
+                statusDemanda: 'Demanda Pendente' 
               });
-              count++;
+            } else {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: l, 
+                canal: 'OPA', 
+                meio: 'Ligação', 
+                demanda: 'Geral', 
+                statusDemanda: 'Demanda Pendente' 
+              });
             }
           });
 
-          await syncPushCloud();
-          alert(`Sucesso! ${count} demandas enviadas para a nuvem do colaborador ${targetColab}!`);
-          renderView();
-        };
+          if(toInsert.length > 0) {
+            document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Enviando...</span>';
+            const { error } = await supabase.from('clientes').insert(toInsert);
+            
+            if(error) {
+              console.error("Erro Supabase:", error);
+              alert('Erro ao salvar no banco: ' + error.message);
+            } else {
+              document.getElementById('import-fin-txt').value = '';
+              showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
+              syncFetchCloud();
+            }
+          }
+        });
       }
 
-      window.limparCarteira = async function(op) {
-        if(confirm(`Limpar lista do Colaborador: ${op}?`)) {
-          clientesDB[op] = [];
-          await syncPushCloud();
-          renderView();
+      window.limparCarteira = async function(operador) {
+        if(confirm(`Tem certeza que deseja apagar TODAS as demandas de ${operador}?`)) {
+          await supabase.from('clientes').delete().eq('operador', operador);
+          showToast(`🗑️ Demandas de ${operador} foram limpas.`);
+          syncFetchCloud();
         }
       };
 
