@@ -168,7 +168,7 @@
       // CONFIGURAÇÃO SUPABASE
       // ==========================================
       const SUPABASE_URL = "https://lgdngncxmlbtshclanzy.supabase.co";
-      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnZG5nbmNubWxidHNoY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInRefiI6ImxnZG5nbmNubWxidHNoY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       let usuariosDB = {
@@ -574,7 +574,7 @@
                 </select>
               </div>
               <p style="font-size:11px; color:var(--app-text-muted); margin-bottom:10px;">
-                Copie e cole da planilha (Cliente | Etapa | Telefone)
+                Copie e cole da planilha ou lista simples (Cliente | Etapa | Telefone)
               </p>
               <div class="cc-field">
                 <textarea id="import-cobranca-txt" rows="3" placeholder="LUANA MELO ALENCAR Etapa 3 (Cobranca)  (61) 98629-6727"></textarea>
@@ -591,7 +591,7 @@
                 </select>
               </div>
               <p style="font-size:11px; color:var(--app-text-muted); margin-bottom:10px;">
-                Copie e cole da planilha (Cliente | OPA | Ligação | Demanda)
+                Copie e cole da planilha ou lista simples (Cliente | OPA | Ligação | Demanda)
               </p>
               <div class="cc-field">
                 <textarea id="import-fin-txt" rows="3" placeholder="JOAO DA SILVA OPA Ligação Cartão de crédito"></textarea>
@@ -656,7 +656,7 @@
           </div>
         `;
 
-        // Eventos de Importação e Ações do Supervisor
+        // Eventos de Importação e Ações do Supervisor (ATUALIZADO)
         document.getElementById('btn-import-cobranca').addEventListener('click', async () => {
           const colab = document.getElementById('cob-target-colab').value;
           const raw = document.getElementById('import-cobranca-txt').value.trim();
@@ -666,20 +666,52 @@
           const toInsert = [];
 
           lines.forEach(line => {
-            if(!line.trim()) return;
-            const parts = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+            const l = line.trim();
+            if(!l) return;
+
+            let parts = l.split('\t');
+            if(parts.length < 2) parts = l.split(';');
+            if(parts.length < 2) parts = l.split('|');
+
             if(parts.length >= 3) {
-              toInsert.push({ operador: colab, cliente: parts[0].trim(), etapa: parts[1].trim(), celular: parts[2].trim(), statusDemanda: 'Demanda Pendente' });
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                etapa: parts[1].trim(), 
+                celular: parts[2].trim(), 
+                statusDemanda: 'Demanda Pendente' 
+              });
+            } else if(parts.length === 2) {
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                etapa: parts[1].trim(), 
+                celular: '', 
+                statusDemanda: 'Demanda Pendente' 
+              });
             } else {
-              toInsert.push({ operador: colab, cliente: line.trim(), statusDemanda: 'Demanda Pendente' });
+              toInsert.push({ 
+                operador: colab, 
+                cliente: l, 
+                etapa: 'Geral', 
+                celular: '', 
+                statusDemanda: 'Demanda Pendente' 
+              });
             }
           });
 
           if(toInsert.length > 0) {
-            await supabase.from('clientes').insert(toInsert);
-            document.getElementById('import-cobranca-txt').value = '';
-            showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
-            syncFetchCloud();
+            document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Enviando...</span>';
+            const { error } = await supabase.from('clientes').insert(toInsert);
+            
+            if(error) {
+              console.error("Erro Supabase:", error);
+              alert('Erro ao salvar no banco: ' + error.message);
+            } else {
+              document.getElementById('import-cobranca-txt').value = '';
+              showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
+              syncFetchCloud();
+            }
           }
         });
 
@@ -692,20 +724,46 @@
           const toInsert = [];
 
           lines.forEach(line => {
-            if(!line.trim()) return;
-            const parts = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+            const l = line.trim();
+            if(!l) return;
+
+            let parts = l.split('\t');
+            if(parts.length < 2) parts = l.split(';');
+            if(parts.length < 2) parts = l.split('|');
+
             if(parts.length >= 4) {
-              toInsert.push({ operador: colab, cliente: parts[0].trim(), canal: parts[1].trim(), meio: parts[2].trim(), demanda: parts[3].trim(), statusDemanda: 'Demanda Pendente' });
+              toInsert.push({ 
+                operador: colab, 
+                cliente: parts[0].trim(), 
+                canal: parts[1].trim(), 
+                meio: parts[2].trim(), 
+                demanda: parts[3].trim(), 
+                statusDemanda: 'Demanda Pendente' 
+              });
             } else {
-              toInsert.push({ operador: colab, cliente: line.trim(), statusDemanda: 'Demanda Pendente' });
+              toInsert.push({ 
+                operador: colab, 
+                cliente: l, 
+                canal: 'OPA', 
+                meio: 'Ligação', 
+                demanda: 'Geral', 
+                statusDemanda: 'Demanda Pendente' 
+              });
             }
           });
 
           if(toInsert.length > 0) {
-            await supabase.from('clientes').insert(toInsert);
-            document.getElementById('import-fin-txt').value = '';
-            showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
-            syncFetchCloud();
+            document.getElementById('cloud-status').innerHTML = '<span style="color:#F59E0B;">⏳ Enviando...</span>';
+            const { error } = await supabase.from('clientes').insert(toInsert);
+            
+            if(error) {
+              console.error("Erro Supabase:", error);
+              alert('Erro ao salvar no banco: ' + error.message);
+            } else {
+              document.getElementById('import-fin-txt').value = '';
+              showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
+              syncFetchCloud();
+            }
           }
         });
       }
