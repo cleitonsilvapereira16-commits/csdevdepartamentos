@@ -167,8 +167,8 @@
       // ==========================================
       // CONFIGURAÇÃO SUPABASE
       // ==========================================
-      const SUPABASE_URL = "SUA_URL_DO_SUPABASE";
-      const SUPABASE_ANON_KEY = "SUA_ANON_KEY_DO_SUPABASE";
+      const SUPABASE_URL = "https://lgdngncxmlbtshclanzy.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnZG5nbmNubWxidHNoY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
       let usuariosDB = {
@@ -240,7 +240,6 @@
         }
       }
 
-      // Loop de atualização automática a cada 4 segundos
       setInterval(syncFetchCloud, 4000);
 
       function showToast(msg) {
@@ -287,7 +286,6 @@
 
         currentUser = { nome: u, id: usuariosDB[u].id, setor: usuariosDB[u].setor };
 
-        // Registrar presença no Supabase
         const horaAtual = new Date().toLocaleTimeString();
         await supabase.from('presenca').upsert({ operador: u, horario: horaAtual });
 
@@ -349,7 +347,6 @@
             </div>
           </div>
 
-          <!-- BLOCO DE NOTAS DO COLABORADOR -->
           <div class="cc-panel">
             <h3>📝 Bloco de Notas (Salvo na Nuvem para o Supervisor)</h3>
             <div class="cc-field" style="margin-bottom:0;">
@@ -485,7 +482,6 @@
         });
 
         container.innerHTML = `
-          <!-- USUÁRIOS ONLINE -->
           <div class="cc-panel" style="background:#1A2332;">
             <h3>🟢 Colaboradores Online no Momento</h3>
             <div style="display:flex; gap:12px; flex-wrap:wrap;">
@@ -500,7 +496,6 @@
             </div>
           </div>
 
-          <!-- DESEMPENHO FINANCEIRO -->
           <div class="cc-panel">
             <h3>💳 Desempenho Financeiro (Demandas Realizadas)</h3>
             <div class="cc-table-wrap">
@@ -527,7 +522,6 @@
             </div>
           </div>
 
-          <!-- DESEMPENHO COBRANÇA -->
           <div class="cc-panel">
             <h3>📈 Desempenho Cobrança (Fechamento de Etapas)</h3>
             <div class="cc-table-wrap">
@@ -558,7 +552,6 @@
             </div>
           </div>
 
-          <!-- BLOCOS DE NOTAS DOS COLABORADORES -->
           <div class="cc-panel" style="border-color:#F59E0B;">
             <h3 style="color:#F59E0B;">📝 Bloco de Notas / Anotações de Cada Colaborador</h3>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
@@ -571,7 +564,6 @@
             </div>
           </div>
 
-          <!-- IMPORTAÇÕES EM MASSA -->
           <div class="import-grid">
             <div class="cc-panel" style="margin-bottom:0;">
               <h3>⚡ Enviar Demandas para Cobrança</h3>
@@ -608,7 +600,6 @@
             </div>
           </div>
 
-          <!-- ACOMPANHAMENTO DETALHADO -->
           <div class="cc-panel" style="margin-top:24px;">
             <h3>📊 Relatório e Progresso Individual</h3>
             ${Object.keys(clientesDB).map(op => {
@@ -648,12 +639,12 @@
                             <td><b>${c.cliente}</b></td>
                             <td>${c.demanda || c.etapa || '-'}</td>
                             <td>
-                              <span style="color:${c.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'}; font-weight:800;">
+                              <span style="color:${c.statusDemanda === 'Demanda Realizada' ? '#10B981' : '#EF4444'}; font-weight:700;">
                                 ${c.statusDemanda || 'Demanda Pendente'}
                               </span>
                             </td>
-                            <td>${c.resposta === 'sim' ? '✔️' : '-'}</td>
-                            <td>${c.resposta === 'nao' ? '❌' : '-'}</td>
+                            <td style="text-align:center;">${c.resposta === 'sim' ? '✅' : '-'}</td>
+                            <td style="text-align:center;">${c.resposta === 'nao' ? '❌' : '-'}</td>
                           </tr>
                         `).join('')}
                       </tbody>
@@ -665,64 +656,64 @@
           </div>
         `;
 
-        // Eventos de Importação
+        // Eventos de Importação e Ações do Supervisor
         document.getElementById('btn-import-cobranca').addEventListener('click', async () => {
-          const target = document.getElementById('cob-target-colab').value;
+          const colab = document.getElementById('cob-target-colab').value;
           const raw = document.getElementById('import-cobranca-txt').value.trim();
-          if(!raw) return alert('Cole os dados primeiro.');
+          if(!raw) return alert('Cole o texto para importação.');
 
           const lines = raw.split('\n');
-          const batch = lines.map(line => {
-            const parts = line.split('\t');
-            return {
-              operador: target,
-              cliente: parts[0] ? parts[0].trim() : 'Cliente Indefinido',
-              etapa: parts[1] ? parts[1].trim() : 'Etapa N/A',
-              celular: parts[2] ? parts[2].trim() : '-',
-              statusDemanda: 'Demanda Pendente'
-            };
-          }).filter(x => x.cliente);
+          const toInsert = [];
 
-          if(batch.length > 0) {
-            await supabase.from('clientes').insert(batch);
+          lines.forEach(line => {
+            if(!line.trim()) return;
+            const parts = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+            if(parts.length >= 3) {
+              toInsert.push({ operador: colab, cliente: parts[0].trim(), etapa: parts[1].trim(), celular: parts[2].trim(), statusDemanda: 'Demanda Pendente' });
+            } else {
+              toInsert.push({ operador: colab, cliente: line.trim(), statusDemanda: 'Demanda Pendente' });
+            }
+          });
+
+          if(toInsert.length > 0) {
+            await supabase.from('clientes').insert(toInsert);
             document.getElementById('import-cobranca-txt').value = '';
-            showToast(`✅ ${batch.length} demandas enviadas para ${target}!`);
+            showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
             syncFetchCloud();
           }
         });
 
         document.getElementById('btn-import-fin').addEventListener('click', async () => {
-          const target = document.getElementById('fin-target-colab').value;
+          const colab = document.getElementById('fin-target-colab').value;
           const raw = document.getElementById('import-fin-txt').value.trim();
-          if(!raw) return alert('Cole os dados primeiro.');
+          if(!raw) return alert('Cole o texto para importação.');
 
           const lines = raw.split('\n');
-          const batch = lines.map(line => {
-            const parts = line.split('\t');
-            return {
-              operador: target,
-              cliente: parts[0] ? parts[0].trim() : 'Cliente Indefinido',
-              canal: parts[1] ? parts[1].trim() : 'OPA',
-              meio: parts[2] ? parts[2].trim() : 'Ligação',
-              demanda: parts[3] ? parts[3].trim() : 'Geral',
-              statusAcesso: 'Sem retorno',
-              prioridade: 'Atendimento normal',
-              statusDemanda: 'Demanda Pendente'
-            };
-          }).filter(x => x.cliente);
+          const toInsert = [];
 
-          if(batch.length > 0) {
-            await supabase.from('clientes').insert(batch);
+          lines.forEach(line => {
+            if(!line.trim()) return;
+            const parts = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+            if(parts.length >= 4) {
+              toInsert.push({ operador: colab, cliente: parts[0].trim(), canal: parts[1].trim(), meio: parts[2].trim(), demanda: parts[3].trim(), statusDemanda: 'Demanda Pendente' });
+            } else {
+              toInsert.push({ operador: colab, cliente: line.trim(), statusDemanda: 'Demanda Pendente' });
+            }
+          });
+
+          if(toInsert.length > 0) {
+            await supabase.from('clientes').insert(toInsert);
             document.getElementById('import-fin-txt').value = '';
-            showToast(`✅ ${batch.length} demandas enviadas para ${target}!`);
+            showToast(`✅ ${toInsert.length} demandas enviadas para ${colab}`);
             syncFetchCloud();
           }
         });
       }
 
-      window.limparCarteira = async function(op) {
-        if(confirm(`Tem certeza que deseja apagar TODAS as demandas de ${op}?`)) {
-          await supabase.from('clientes').delete().eq('operador', op);
+      window.limparCarteira = async function(operador) {
+        if(confirm(`Tem certeza que deseja apagar TODAS as demandas de ${operador}?`)) {
+          await supabase.from('clientes').delete().eq('operador', operador);
+          showToast(`🗑️ Demandas de ${operador} foram limpas.`);
           syncFetchCloud();
         }
       };
