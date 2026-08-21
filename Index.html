@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CS DEV - Gestão de Demandas & Cobrança</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -22,7 +20,6 @@
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- LOGIN CONTAINER -->
     <div id="loginSection" class="w-full max-w-md card-bg rounded-xl p-8 shadow-2xl border border-cyan-500/20">
         <h1 class="text-2xl font-bold text-center text-cyan-400 mb-2 tracking-wide uppercase">
             Departamento Financeiro e Cobrança
@@ -57,7 +54,6 @@
         </form>
     </div>
 
-    <!-- MAIN DASHBOARD -->
     <div id="dashboardSection" class="hidden w-full max-w-5xl space-y-6">
         <header class="flex justify-between items-center card-bg p-4 rounded-xl">
             <div>
@@ -69,7 +65,6 @@
             </button>
         </header>
 
-        <!-- IMPORTAÇÃO DE DEMANDAS -->
         <div class="card-bg p-6 rounded-xl space-y-4">
             <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2">
                 <span class="w-3 h-3 bg-cyan-400 rounded-full inline-block"></span>
@@ -106,94 +101,87 @@ Maria Santos - Regularização" class="w-full bg-slate-900 border border-slate-7
         </div>
     </div>
 
-    <!-- SCRIPT DE CONFIGURAÇÃO DO SUPABASE -->
     <script>
-        // CONFIGURAÇÕES SUPABASE
-        const SUPABASE_URL = "https://lgdngncxmlbtshclanzy.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnZG5nbmN4bWxidHNoY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
+        document.addEventListener('DOMContentLoaded', () => {
+            const SUPABASE_URL = "https://lgdngncxmlbtshclanzy.supabase.co";
+            const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnZG5nbmN4bWxidHShY2xhbnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMTIwNzgsImV4cCI6MjEwMjc4ODA3OH0.FSmfOpRQqeaEeRoGK1kQ-lRIyeG-DK6wp68wzB0mjcY";
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // ELEMENTOS DOM
-        const loginSection = document.getElementById('loginSection');
-        const dashboardSection = document.getElementById('dashboardSection');
-        const userSelect = document.getElementById('userSelect');
-        const operatorId = document.getElementById('operatorId');
-        const pinContainer = document.getElementById('pinContainer');
-        const loginForm = document.getElementById('loginForm');
-        const welcomeUser = document.getElementById('welcomeUser');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const btnProcessAndSend = document.getElementById('btnProcessAndSend');
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const userSelect = document.getElementById('userSelect');
+            const operatorId = document.getElementById('operatorId');
+            const pinContainer = document.getElementById('pinContainer');
+            const loginForm = document.getElementById('loginForm');
+            const welcomeUser = document.getElementById('welcomeUser');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const btnProcessAndSend = document.getElementById('btnProcessAndSend');
 
-        // Mapeamento de IDs e Toggle do campo PIN
-        userSelect.addEventListener('change', (e) => {
-            operatorId.value = e.target.value;
-            if (e.target.value === "121") {
-                pinContainer.style.display = "block";
-            } else {
-                pinContainer.style.display = "none";
-            }
-        });
+            userSelect.addEventListener('change', (e) => {
+                operatorId.value = e.target.value;
+                if (e.target.value === "121") {
+                    pinContainer.style.display = "block";
+                } else {
+                    pinContainer.style.display = "none";
+                }
+            });
 
-        // Login Handler
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const pin = document.getElementById('pinInput').value;
-            if (userSelect.value === "121" && pin !== "9871") {
-                alert("PIN incorreto para o Supervisor!");
-                return;
-            }
-            loginSection.classList.add('hidden');
-            dashboardSection.classList.remove('hidden');
-            welcomeUser.textContent = `Painel - ${userSelect.options[userSelect.selectedIndex].text}`;
-        });
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const pin = document.getElementById('pinInput').value;
+                if (userSelect.value === "121" && pin !== "9871") {
+                    alert("PIN incorreto para o Supervisor!");
+                    return;
+                }
+                loginSection.classList.add('hidden');
+                dashboardSection.classList.remove('hidden');
+                welcomeUser.textContent = `Painel - ${userSelect.options[userSelect.selectedIndex].text}`;
+            });
 
-        // Logout Handler
-        logoutBtn.addEventListener('click', () => {
-            dashboardSection.classList.add('hidden');
-            loginSection.classList.remove('hidden');
-            document.getElementById('pinInput').value = "";
-        });
+            logoutBtn.addEventListener('click', () => {
+                dashboardSection.classList.add('hidden');
+                loginSection.classList.remove('hidden');
+                document.getElementById('pinInput').value = "";
+            });
 
-        // Envio de Demanda para o Supabase
-        btnProcessAndSend.addEventListener('click', async () => {
-            const rawData = document.getElementById('importData').value.trim();
-            const targetOperator = document.getElementById('targetOperator').value;
+            btnProcessAndSend.addEventListener('click', async () => {
+                const rawData = document.getElementById('importData').value.trim();
+                const targetOperator = document.getElementById('targetOperator').value;
 
-            if (!rawData) {
-                alert("Por favor, cole a lista de demandas antes de enviar.");
-                return;
-            }
-
-            const lines = rawData.split('\n').filter(line => line.trim() !== "");
-            const recordsToInsert = lines.map(line => ({
-                operador: targetOperator,
-                cliente: line.trim(),
-                statusDemanda: "Pendente",
-                demanda: line.trim()
-            }));
-
-            try {
-                btnProcessAndSend.disabled = true;
-                btnProcessAndSend.textContent = "Enviando...";
-
-                const { data, error } = await supabase
-                    .from('clientes')
-                    .insert(recordsToInsert);
-
-                if (error) {
-                    throw error;
+                if (!rawData) {
+                    alert("Por favor, cole a lista de demandas antes de enviar.");
+                    return;
                 }
 
-                alert(`Sucesso! ${recordsToInsert.length} demanda(s) enviada(s) para ${targetOperator}.`);
-                document.getElementById('importData').value = "";
-            } catch (err) {
-                console.error("Erro no Supabase:", err);
-                alert("Erro ao salvar no banco: " + (err.message || err));
-            } finally {
-                btnProcessAndSend.disabled = false;
-                btnProcessAndSend.textContent = "Processar e Enviar ao Supabase";
-            }
+                const lines = rawData.split('\n').filter(line => line.trim() !== "");
+                const recordsToInsert = lines.map(line => ({
+                    operador: targetOperator,
+                    cliente: line.trim(),
+                    statusDemanda: "Pendente",
+                    demanda: line.trim()
+                }));
+
+                try {
+                    btnProcessAndSend.disabled = true;
+                    btnProcessAndSend.textContent = "Enviando...";
+
+                    const { data, error } = await supabaseClient
+                        .from('clientes')
+                        .insert(recordsToInsert);
+
+                    if (error) throw error;
+
+                    alert(`Sucesso! ${recordsToInsert.length} demanda(s) enviada(s) para ${targetOperator}.`);
+                    document.getElementById('importData').value = "";
+                } catch (err) {
+                    console.error("Erro no Supabase:", err);
+                    alert("Erro ao salvar no banco: " + (err.message || err));
+                } finally {
+                    btnProcessAndSend.disabled = false;
+                    btnProcessAndSend.textContent = "Processar e Enviar ao Supabase";
+                }
+            });
         });
     </script>
 </body>
